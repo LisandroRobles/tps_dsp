@@ -98,6 +98,30 @@ def input_delay(N,i):
     
     return b,a
 
+def matched_filter(x,template,Vumbral):
+    
+    #Paso el template a punto flotante
+    template = np.array(template,dtype = float)
+    
+    #Los filtros del coeficiente FIR se obtienen invirtiendo en el tiempo
+    #el template
+    fir_coeffs = template[::-1]
+
+    #Aplico el filtro FIR
+    det = sig.lfilter(fir_coeffs,1.0,x,axis = 0)
+    
+    #Normalizo la deteccion
+    det = det
+    det = det/np.max(det)
+    
+    #Lo elevo al cuadrado
+    #det = np.power(det,2)
+    
+    #Aplico el umbral
+    #det = 
+    
+    return det
+
 def decimate(x,fs1,fs2):
     
     #Antes de submuestrearhay que aplicar un filtro anti-allias
