@@ -98,7 +98,11 @@ def input_delay(N,i):
     
     return b,a
 
-def matched_filter(x,template,Vumbral):
+def matched_filter(x,template,fs,Vumbral,tiempo_ciego):
+    
+    #Obtengo el tiempo refractario en muestras
+    T = tiempo_ciego
+    M = int(T*fs)
     
     #Paso el template a punto flotante
     template = np.array(template,dtype = float)
@@ -109,18 +113,43 @@ def matched_filter(x,template,Vumbral):
 
     #Aplico el filtro FIR
     det = sig.lfilter(fir_coeffs,1.0,x,axis = 0)
+        
+    #Plancho a cero todo lo negativo
+    aux = np.zeros((np.size(det),1),dtype = float)
+    aux[det > 0] = det[det > 0]
+    det = aux
     
     #Normalizo la deteccion
-    det = det
     det = det/np.max(det)
     
     #Lo elevo al cuadrado
-    #det = np.power(det,2)
+    det = np.power(det,2)
     
     #Aplico el umbral
-    #det = 
+    aux = np.zeros((np.size(det),1),dtype = float)
+    aux[det > Vumbral] = det[det > Vumbral]
+    det = aux
     
-    return det
+    #Obtengo los indices donde no es cero
+    indices = np.where(det[:,0] > 0)
+    indices = np.array(indices,dtype = int).T[:,0]
+    
+    #Arranco desde el primer indice
+    #Aplico el periodo refractario de 300ms entre cada deteccion
+    indice_actual = indices[0]
+    for nuevo_indice in indices[1:]:
+        
+        if (nuevo_indice - indice_actual) < M:
+            det[nuevo_indice,:] = 0
+            
+        else:
+            indice_actual = nuevo_indice
+
+    #Obtengo los nuevos indices
+    indices = np.where(det[:,0] > 0)
+    indices = np.array(indices,dtype = int).T[:,0]    
+
+    return indices
 
 def decimate(x,fs1,fs2):
     
