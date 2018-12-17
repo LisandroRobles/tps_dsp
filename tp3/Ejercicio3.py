@@ -20,8 +20,7 @@ from pandas import DataFrame
 def testbench():
         
     #Parametros del muestreo
-    N = np.array([1024], dtype = int)
-
+    N = np.array([2000], dtype = int)
     
     #Frecuencias de muestreo
     fs = 1000
@@ -29,20 +28,19 @@ def testbench():
     #Cantidad de realizaciones
     S = 500
     
-    #En cuantos bloques divido (2^k)
-    ki = 4
+    #En cuantos bloques divido
+    L = N/10
     
     #Overlap entre bloques
     ovi = 50
     
+    #Ventana utilizada
+    wi = 'bartlett'
+    
     #Aca se almacenaran los resultados
-    tus_resultados = []
-    sesgos = np.zeros([np.size(N),],dtype = float)
-    varianzas = np.zeros([np.size(N),],dtype = float)
-    
-    #Contador
-    j = 0
-    
+    tus_resultados_b = []
+    tus_resultados_w = []
+        
     #Para cada largo de señal
     for Ni in N:
                 
@@ -60,64 +58,52 @@ def testbench():
         u = np.zeros((S,1),dtype = float)
         
         #Varianza - Todas las realizaciones de desvio estandar de raiz de 2
-        s = np.sqrt(4)*np.ones((S,1),dtype = float)
+        var = 1
+        s = np.sqrt(var)*np.ones((S,1),dtype = float)
         
         #Llamo al metodo que genera ruido blanco
         #Genera una matriz de NxS, donde N = Filas y S = Columnas
         (t,x) = generador.noise(dist,u,s)
             
         #Realizo de forma matricial el modulo del espectro de todas las realizaciones
-        (f,Sxm,Sxv) = sa.welch(x,fs,k = ki,window = 'bartlett',overlap = 50)
+        (f,Sxm_w,Sxv_w) = sa.welch(x,fs,L,window = wi,overlap = ovi)
+        
+        (f,Sxm_b,Sxv_b) = sa.bartlett(x,fs,nsect = 10)
         
         #Calculo el area de ese espectro "promedio"
         #El area de la psd da la potencia
-        valor_esperado = (np.mean(Sxm))
+        valor_esperado = (np.mean(Sxm_w))
         print('Valor esperado:' + str(valor_esperado))
         sesgo = valor_esperado - np.power(s[0,0],2)
-        
+
         #Calculo el area de eso
-        varianza = (np.mean(Sxv))
+        varianza = (np.mean(Sxv_w))
         print('Varianza del estimador:' + str(varianza))
         
         #Almaceno los resultados para esta largo de señal
-        tus_resultados.append([str(sesgo),str(varianza)])
+        tus_resultados_w.append([str(sesgo),str(varianza)])
+
+        #Calculo el area de ese espectro "promedio"
+        #El area de la psd da la potencia
+        valor_esperado = (np.mean(Sxm_b))
+        print('Valor esperado:' + str(valor_esperado))
+        sesgo = valor_esperado - np.power(s[0,0],2)
+
+        #Calculo el area de eso
+        varianza = (np.mean(Sxv_b))
+        print('Varianza del estimador:' + str(varianza))
         
-        #Sesgos
-        sesgos[j] = sesgo
+        #Almaceno los resultados para esta largo de señal
+        tus_resultados_b.append([str(sesgo),str(varianza)])
         
-        #Varianzas
-        varianzas[j] = varianza
-        
-        #Aumento el contador
-        j = j + 1
-    
-    
-    #Presentación gráfica de resultados
-#    plt.figure()
-#    fig, axarr = plt.subplots(2, 1,figsize = (10,5)) 
-#    fig.suptitle('Evolución de los parámetros del periodograma en función del largo de la señal',fontsize=12,y = 1.08)
-#    fig.tight_layout()
-#    
-#    axarr[0].stem(N,np.abs(sesgos))
-#    axarr[0].set_title('Sesgo del periodograma en función del largo de la señal')
-#    axarr[0].set_ylabel('$s_{p}[N]$')
-#    axarr[0].set_xlabel('$N$')
-#    axarr[0].set_ylim((1.1*min(sesgos),max(sesgos)*1.1))
-#    axarr[0].axis('tight')
-#    axarr[0].grid()
-#    
-#    axarr[1].stem(N,varianzas)
-#    axarr[1].set_title('Varianza del periodograma en función del largo de la señal')
-#    axarr[1].set_ylabel('$v_{p}[N]$')
-#    axarr[1].set_xlabel('$N$')
-#    axarr[1].set_ylim((1.1*min(varianzas),max(varianzas)*1.1))
-#    axarr[1].axis('tight')
-#    axarr[1].grid()
-    
     #Almaceno el resultado en el dataframe
-    df = DataFrame(tus_resultados, columns=['$s_P$', '$v_P$'],index=N)
+    df_w = DataFrame(tus_resultados_w, columns=['$s_P$', '$v_P$'],index=N)
     
-    print(df)
+    df_b = DataFrame(tus_resultados_b, columns=['$s_P$', '$v_P$'],index=N)
+    
+    print(df_b)
+    
+    print(df_w)
     
 #Script
 

@@ -65,7 +65,7 @@ def bartlett(N):
     n = np.linspace(0,N-1,N)
     
     wt = (1 - (np.abs(2*n - N + 1)/(N+1))).reshape(N,1)
-    
+
     return wt
 
 def hann(N):

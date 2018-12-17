@@ -65,7 +65,7 @@ def testbench():
         (t,x) = generador.noise(dist,u,s)
             
         #Estimador periodograma
-        (f,Sxm,Sxv) = sa.bartlett(x,fs,k = ki,window = 'bartlett')
+        (f,Sxm,Sxv) = sa.bartlett(x,fs,nsect = ki)
         
         #Calculo el area de ese espectro "promedio"
         #El area de la psd da la potencia

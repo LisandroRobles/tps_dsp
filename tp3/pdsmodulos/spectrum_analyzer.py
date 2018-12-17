@@ -9,6 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy.signal.windows as win
 import scipy.fftpack as fftpack
+from numpy import linalg as LA
 
 class spectrum_analyzer:
     
@@ -369,66 +370,84 @@ def periodograma(x,fs,ensemble = False):
     
     return (f,Sxm,Sxv)            
 
-def bartlett(x,fs,k = 1,window = 'bartlett',ensemble = False):
+def periodograma_modificado(x,fs,window = 'rectangular',ensemble = False):
+    
+    #Largo de x
+    n = int(np.size(x,0))
+
+    #Genero la ventana
+    if window is 'rectangular':
+        w = np.ones((n,),dtype = float)
+    elif window is 'bartlett':
+        w = win.bartlett(n)
+    elif window is 'hann':
+        w = win.hann(n)
+    elif window is 'hamming':
+        w = win.hamming(n)
+    elif window is 'blackman':
+        w = win.blackman(n)
+    elif window is 'flat-top':
+        w = win.flattop(n)
+    else:
+        w = np.ones((n,),dtype = float)
+    
+    w = w.reshape((n,1))/LA.norm(w,axis = 0)
+
+    #Ventaneo los datos y normalizo
+    xw = x*w
+
+    #Realizo de forma matricial el modulo del espectro de todas las realizaciones
+    (f,Sx,Sxv) = periodograma(xw,fs,ensemble = True)
+    Sx = n*Sx
+    
+    #Hago el promedio en las realizaciones
+    Sxm = np.mean(Sx,1)
+    
+    #Hago la varianza en las realizaciones
+    Sxv = np.var(Sx,1)
+    
+    if ensemble is True:
         
-    k = int(k)
+        Sxm = Sx
+        Sxv = 0
+    
+    return (f,Sxm,Sxv)  
+
+def bartlett(x,fs,nsect = 1,ensemble = False):
+        
+    nsect = int(nsect)
     
     n = np.size(x,0)
-    l = int(np.floor(n/k))
+    L = int(np.floor(n/nsect))
     
-    if l is not 0:
+    if L is not 0:
     
         realizaciones = np.size(x,1)
         
-        if (l % 2) != 0:
-            largo_espectro_un_lado = int((l+1)/2)
+        if (L % 2) != 0:
+            largo_espectro_un_lado = int((L+1)/2)
         else:
-            largo_espectro_un_lado = int((l/2)+1)
+            largo_espectro_un_lado = int((L/2)+1)
         
-        Sx = np.zeros([largo_espectro_un_lado,int(realizaciones),int(k)],dtype = float)
+        Sx = np.zeros([largo_espectro_un_lado,int(realizaciones)],dtype = float)
         
-        if window is 'rectangular':
-            w = np.ones((l,),dtype = float)
-        elif window is 'bartlett':
-            w = win.bartlett(l)
-        elif window is 'hann':
-            w = win.hann(l)
-        elif window is 'hamming':
-            w = win.hamming(l)
-        elif window is 'blackman':
-            w = win.blackman(l)
-        elif window is 'flat-top':
-            w = win.flattop(l)
-        else:
-            w = np.ones((l,),dtype = float)
         
-        w = w.reshape((l,1))
-        
-        for i in range(0,k):
+        n1 = 0        
+        for i in range(0,nsect):
             
-            #Obtengo el bloque i-esimo para cada realizacion
-            xi = x[int(i*l):int((i+1)*l),:]
+            #Obtengo el bloque i-esimo de todas las realizaciones
+            xi = x[int(n1):int(n1 + L),:]
             
-            #Al bloque i-esimo de cada realizacion le aplico el ventaneo correspondiente
-            xwi = (xi*w)
+            #Obtengo el periodograma de todas las realizaciones para este
+            #bloque
+            (f,Sxi,Sxv) = periodograma(xi,fs,ensemble = True) 
             
-            #Enciendo el analizador de espectro
-            analizador = spectrum_analyzer(fs,l,"fft")
+            #Los promedio
+            Sx = Sx + Sxi/nsect
             
-            #Obtengo el espectro de modulo del bloque i-esimo para cada realizacion
-            (f,Sxi) = analizador.psd(xwi,xaxis = 'phi')
-            
-            #Divido por la energia de la ventana
-            Sxi = Sxi/(np.mean(np.power(w,2)))
-            
-            #Lo agrego al resultado general
-            Sx[:,:,i] = Sxi
-        
-        #Promedio para cada realizacion cada uno de los bloques
-        #Deberia quedar una matriz con lxr
-        #Donde l es el largo del bloque y r es la cantidad de realizaciones
-        Sx = np.mean(Sx,axis = 2)
-        
+            #Muevo el cursor
+            n1 = n1 + L
+                    
         #Hago el promedio en las realizaciones
         Sxm = np.mean(Sx,1)
         
@@ -449,95 +468,44 @@ def bartlett(x,fs,k = 1,window = 'bartlett',ensemble = False):
     
     return (f,Sxm,Sxv)
         
-def welch(x,fs,k = 1,window = 'bartlett',overlap = 50,ensemble = False):
-    
-    #Cantidad de bloques si no hubiera solapamiento
-    k = int(k)
-    
+def welch(x,fs,L,window = 'bartlett',overlap = 50,ensemble = False):
+        
     #Cantidad de muestras de cada realizacion
     n = np.size(x,0)
     
-    #Largo de cada bloque
-    l = int(np.floor(n/k))
-    
-    if l is not 0:
+    if L is not 0:
         
         #Obtiene la cantidad de realizaciones
         realizaciones = np.size(x,1)
         
         #En funcion del largo de cada bloque obtiene el largo que tendria 
         #el espectro de un solo lado
-        if (l % 2) != 0:
-            largo_espectro_un_lado = int((l+1)/2)
+        if (L % 2) != 0:
+            largo_espectro_un_lado = int((L+1)/2)
         else:
-            largo_espectro_un_lado = int((l/2)+1)
+            largo_espectro_un_lado = int((L/2)+1)
         
-        #Selecciona la ventana
-        if window is 'rectangular':
-            w = np.ones((l,),dtype = float)
-        elif window is 'bartlett':
-            w = win.bartlett(l)
-        elif window is 'hann':
-            w = win.hann(l)
-        elif window is 'hamming':
-            w = win.hamming(l)
-        elif window is 'blackman':
-            w = win.blackman(l)
-        elif window is 'flat-top':
-            w = win.flattop(l)
-        else:
-            w = np.ones((l,),dtype = float)
+        Sx = np.zeros([largo_espectro_un_lado,int(realizaciones)],dtype = float)
+     
+        n1 = 0
+        n0 = int((1-(overlap/100))*int(L))
+        nsect = int(1 + np.floor((n-L)/(n0)))
         
-        w = w.reshape((l,1))
-        
-        #Calcula el porcentaje de solapamiento eficaz
-        overlap_eficaz = np.ceil(l*(overlap/100))/l
-        
-        if int(l*overlap_eficaz) > (l-1):
-            overlap_eficaz = ((l-1)/(l))
-        
-        #Cuantas muestras se avanza entre cada bloque
-        paso = int(l*(1-overlap_eficaz))
+        for i in range(0,nsect):
+            
+            #Obtengo el bloque i-esimo de todas las realizaciones
+            xi = x[int(n1):int(n1 + L),:]
+            
+            #Obtengo el periodograma de todas las realizaciones para este
+            #bloque
+            (f,Sxi,Sxv) = periodograma_modificado(xi,fs,window = window,ensemble = True) 
+            
+            #Los promedio
+            Sx = Sx + Sxi/nsect
+            
+            #Muevo el cursor
+            n1 = n1 + n0
                 
-        #Determinacion de la cantidad de bloques con solapamiento
-        for cant_frames in range(0,n):
-            if int(n-(l + int(cant_frames*paso))) < paso:
-                cant_frames = cant_frames+1
-                break
-
-        Sx = np.zeros([largo_espectro_un_lado,int(realizaciones),int(cant_frames)],dtype = float)
-        
-        for i in range(0,cant_frames):
-            
-            #indice inicial
-            indice_inicial = int(i*paso)
-            
-            #indice final
-            indice_final = int((i*paso) + l)
-            
-            #Obtengo el bloque i-esimo para cada realizacion
-            xi = x[indice_inicial:indice_final,:]
-            
-            #Al bloque i-esimo de cada realizacion le aplico el ventaneo correspondiente
-            xwi = (xi*w)
-            
-            #Enciendo el analizador de espectro
-            analizador = spectrum_analyzer(fs,l,"fft")
-            
-            #Obtengo el espectro de modulo del bloque i-esimo para cada realizacion
-            (f,Sxi) = analizador.psd(xwi,xaxis = 'phi')
-            
-            #Divido por la energia de la ventana
-            Sxi = Sxi/(np.mean(np.power(w,2)))
-            
-            #Lo agrego al resultado general
-            Sx[:,:,i] = Sxi
-        
-        #Promedio para cada realizacion cada uno de los bloques
-        #Deberia quedar una matriz con lxr
-        #Donde l es el largo del bloque y r es la cantidad de realizaciones
-        Sx = np.mean(Sx,axis = 2)
-        
         #Hago el promedio en las realizaciones
         Sxm = np.mean(Sx,1)
         
@@ -556,11 +524,5 @@ def welch(x,fs,k = 1,window = 'bartlett',overlap = 50,ensemble = False):
         Sxm = 0
         Sxv = 0
     
-    return f,Sxm,Sxv        
-        
-
-        
-        
-        
-        
+    return f,Sxm,Sxv
     
