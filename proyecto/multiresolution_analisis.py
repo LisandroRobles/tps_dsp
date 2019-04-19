@@ -40,16 +40,16 @@ def testbench():
 
     # %% Parametros de registro    
 
-    registro = 27 #Registro deseado
+    registro = 4 #Registro deseado
 
-    ch = 1 #Canal deseado
+    ch = 0 #Canal deseado
 
     # %% Parametros de la transformada wavelet
 
     #Rango sobre el que se aplica la transformacion
-    n1 = 0
+    n1 = 10000
     
-    n2 = 1024
+    n2 = 12000
 
 #    #Wavelet madre
 #    
@@ -80,9 +80,10 @@ def testbench():
 #    wav = 'db2'
 #    
 #    w = pywt.Wavelet(wav)
-    
-    #Especificando el banco de filtros
 
+    
+#    #Especificando el banco de filtros
+#
 #    c = np.sqrt(2)/2
 #
 #    dec_lo, dec_hi, rec_lo, rec_hi = [c, c], [-c, c], [c, c], [c, -c]
@@ -93,8 +94,8 @@ def testbench():
 #
 #    w = myWavelet
 
-#   #Especificando el banco de filtros - 2
 
+   #Especificando el banco de filtros - 2
 
     rec_lo = [(1/8),(3/8),(3/8),(1/8)]
 
@@ -123,18 +124,24 @@ def testbench():
 
     signals, fields = wfdb.rdsamp(paths[registro]) #Lee el registro
 
-    x = signals[n1:n2,ch] #Lee el canal seleccionado del registro
+    x = signals[0:131072,ch] #Lee el canal seleccionado del registro
 
     # %% Transformada wavelet discreta - Analisis con banco de filtros  
 
     #Niveles en los que se descompone
-    #levels = pywt.dwt_max_level(len(x),w)
-    levels = 4
     
     #Obtiene los coeficientes de la descomposicion - Decimando
+
+    #levels = pywt.dwt_max_level(len(x),w)
+
     #coeffs_dec = pywt.wavedec(x,w,level = levels)
 
     #SWT - Algoritmo A'Trous (sin decimar)
+
+    #levels = pywt.swt_max_level(len(x))
+
+    levels = 5
+
     coeffs_undec = pywt.swt(x,w,level = levels)
 
     # %% Grafica las señales de aproximación - DWT (decimando)     
@@ -157,7 +164,7 @@ def testbench():
 
     # %% Grafica las señales de detalle - DWT (decimando)
     
-#    fig, ax = plt.subplots(levels, sharex=True, sharey= True)
+#    fig, ax = plt.subplots(levels, sharex=True, sharey= False)
 #
 #    coeffs_aux = list(np.zeros_like(coeffs))
 #        
@@ -169,17 +176,23 @@ def testbench():
 #                coeffs_aux[j] = np.zeros_like(coeffs[j])
 #        xi = pywt.waverec(coeffs_aux,w)
 #        ax[i].plot(xi)
-                
+#     
+#    plt.figure()
+#    
+#    plt.plot(x)
+#
+#    plt.grid()    
+    
     # %% Grafica las señales de aproximación - SWT (sin decimar)
 
     coeffs = coeffs_undec #Coeficientes que se graficaran
 
     fig, ax = plt.subplots(levels + 1, sharex=True)
     
-    ax[levels].plot(x)
+    ax[levels].plot(x[n1:n2])
     for i in range(levels-1,-1,-1):
         xi = coeffs[i][0]
-        ax[i].plot(xi)
+        ax[i].plot(xi[n1:n2])
         
     # %% Grafica las señales de detalle - SWT (sin decimar)
 
@@ -187,7 +200,7 @@ def testbench():
     
     for i in range(levels-1,-1,-1):
         xi = coeffs[i][1]
-        ax[i].plot(xi)    
+        ax[i].plot(xi[n1:n2])    
     
 # %% Ejecuta el testbench
 
