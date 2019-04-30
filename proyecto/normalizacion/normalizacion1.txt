@@ -1,0 +1,25 @@
+Parámetros de wavelet.
+
+Wavelet: gaus2
+Escalas: 1:1.00:51
+
+Parámetros de los máximos.
+
+Máximo: 224.0502
+Mínimo: 6.6727
+Valor medio: 35.8231
+Desviación estándar: 29.4795
+Percentil 50: 28.0513
+Percentil 55: 30.0782
+Percentil 60: 32.7170
+Percentil 65: 35.7487
+Percentil 70: 37.7770
+Percentil 75: 41.8340
+Percentil 80: 44.6857
+Percentil 85: 47.6149
+Percentil 90: 60.7563
+Percentil 95: 85.2998
+
+Parámetros de histograma.
+
+Cantidad de bins: 500

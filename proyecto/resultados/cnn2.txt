@@ -1,0 +1,66 @@
+MODELO.
+_________________________________________________________________
+Layer (type)                 Output Shape              Param #   
+=================================================================
+conv2d_1 (Conv2D)            (None, 28, 49, 64)        1792      
+_________________________________________________________________
+dropout_1 (Dropout)          (None, 28, 49, 64)        0         
+_________________________________________________________________
+max_pooling2d_1 (MaxPooling2 (None, 14, 24, 64)        0         
+_________________________________________________________________
+conv2d_2 (Conv2D)            (None, 12, 22, 32)        18464     
+_________________________________________________________________
+dropout_2 (Dropout)          (None, 12, 22, 32)        0         
+_________________________________________________________________
+max_pooling2d_2 (MaxPooling2 (None, 6, 11, 32)         0         
+_________________________________________________________________
+flatten_1 (Flatten)          (None, 2112)              0         
+_________________________________________________________________
+dense_1 (Dense)              (None, 128)               270464    
+_________________________________________________________________
+dropout_3 (Dropout)          (None, 128)               0         
+_________________________________________________________________
+dense_2 (Dense)              (None, 2)                 258       
+=================================================================
+Total params: 290,978
+Trainable params: 290,978
+Non-trainable params: 0
+_________________________________________________________________
+
+HIPERPARAMETROS.
+
+Learning rate: 0.001000
+Loss function: binary_crossentropy
+Metrics: acc
+Optimizer: Adam
+Train batch size: 100
+Valid batch size: 100
+Test batch size: 100
+Epochs: 1
+
+ENTRENAMIENTO.
+
+Cantidad total: 302332
+Accuracy:
+Loss:
+
+VALIDACION.
+
+Cantidad total: 302332
+Validation Accuracy:
+Validation Loss:
+
+PRUEBA.
+
+Cantidad total: 37792
+Verdadero positivo: 7715
+Falso negativo: 598
+Verdadero negativo: 29216
+Falso positivo: 263
+Condición positiva: 8313
+Condición negativa: 29479
+Predijo condicion positiva: 7978
+Predijo condicion positiva: 29814
+Sensibilidad: 0.928064
+Valor predictivo positivo: 0.967034
+Exactitud: 0.977217
