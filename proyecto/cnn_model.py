@@ -5,7 +5,16 @@ Created on Sat Apr 27 15:41:57 2019
 
 @author: lisandro
 
-En este scriptse entrena un modelo nuevo
+En este script se rea una nueva red neuronal y se la entrena especificando los
+path de entrenamiento, validacion y prueba, el formato de la imagen y los hiper
+parametros de la red (learning rate, optimizador) y del entrenamiento (batch,
+epocas).
+Una vez entrenado, se grafica accuracy y loss durante el entrenamiento y la val
+idacion.
+Luego, se realiza la prueba y se genera la matriz de confusion para calcular
+otros valores como la sensibilidad y el valor predictivo positivo. Finalmente,
+se almacena el modelo en un archivo cnnXX.h5 y se guardan los resultados en un
+archivo cnnXX.txt
 
 """
 # %% Inclusion de paquetes
@@ -28,7 +37,7 @@ from keras.preprocessing.image import ImageDataGenerator #Manejar las imagenes
 
 from sklearn.metrics import confusion_matrix #Para calcular la confusion matrix
 
-from contextlib import redirect_stdout
+from contextlib import redirect_stdout # Para guardar model.summary en .txt
 
 # %% Definicion de funciones
 
@@ -63,6 +72,8 @@ def plot_confusion_matrix(cm, classes,normalize=False,title='Confusion matrix',c
     plt.ylabel('True label')
     plt.xlabel('Predicted label')
 
+    plt.savefig('cnn3_cm.png')
+
 # %% Testbench
 
 def testbench():
@@ -85,101 +96,119 @@ def testbench():
     
     test_path = '/home/lisandro/dsp/tps_dsp/proyecto/escalogramas/test/'
     
-    # Formato de las imagenes
+    # %% Parametros de las imagenes
     
-    image_height = 30 # Pixels de la imagen NxN
+    image_height = 30 # Alto de la imagen (cantidad de escalas)
     
-    image_width = 51 
+    image_width = 51  # Ancho de la imagen (muestras en segmento: T*fs)
     
-    channels = 3 # Cantidad de canales (color o escala de grises)
+    channels = 3 # Cantidad de canales (color = 3 o escala de grises = 1)
     
-    input_shape = (image_height,image_width,channels)
-    
-    # Categorias en las que se encuentran clasificadas las imagenes 
-    
-    labels = ['NO','SI']
+    input_shape = (image_height,image_width,channels) # Formato de las imagenes
+        
+    labels = ['NO','SI'] # Categorias en las que estan clasificadas 
 
-    # %% Parametros del entrenamiento
-    
-    # Change the batchsize according to your system RAM
-    
-    train_batchsize = 100 #Tamaño del batch de entrenamiento
-    
-    val_batchsize = 100 #Tamaño del batch de validación
-    
-    test_batchsize = 100 #Tamaño del batch de prueba
-    
-    epochs = 1 #Epocas (cantidad de veces que se itera)    
+    n = int(len(labels)) # Cantidad de categorias
 
-    lr = 1e-4
+    # %% Hyperparametros
+    
+    #(Change the batchsize according to your system RAM)
+    
+    train_batchsize = 128 # Tamaño del batch de entrenamiento
+    
+    val_batchsize = 128 # Tamaño del batch de validación
+    
+    test_batchsize = 128 # Tamaño del batch de prueba
+    
+    epochs = 3 # Cantidad de veces que se itera sobre el dataset    
 
-    # Optimizador de la red
-    #optimizer=optimizers.RMSprop(lr=1e-4)
-    #sgd = optimizers.SGD(lr=1e-4)
-    optimizer = optimizers.Adam(lr = lr)
-    
-    loss = 'binary_crossentropy'
-    
-    metrics = 'acc'
+    lr = 1e-4 # Learning Rate
 
-    opt = 'Adam'
+    optimizer = optimizers.Adam(lr = lr) # Optimizador
+    #optimizer=optimizers.RMSprop(lr = lr)
+    #optimizer = optimizers.SGD(lr = lr)
+
+    opt = 'Adam' # Variable a los efectos de documentar el optimizador usado
     
-    file_model = 'cnn3.h5'
+    loss = 'binary_crossentropy' # Func. utilizada para optimizar el algoritmo
+    
+    metrics = 'acc' # Metrica utilizada para medir la performance
+
+    k_size = 3 # Tamaño de los filtros de las capas convolucionales 
+
+    p_size = (2,2) 
+
+    dropout = 0.25
+
+    regularizer = regularizers.l2(0)
+
+    act_fn = 'relu' # Funcion de activacion de todas las capas menos la ultima
+    
+    act_fn_final = 'softmax' # Funcion de activacion de la ultima capa
+
+#    monitor = 'val_loss'
+#    
+#    patience = 20
+
+    file_model = 'cnn4.h5'
             
-    file_results = 'cnn3.txt'
+    file_results = 'cnn4.txt'
     
     # %% Callbacks
     
-    #La red entrena hasta que val loos sea minimo
-    #es = EarlyStopping(monitor = 'val_loss',mode = 'min',verbose = 1,patience = 50,)    
+    #La red entrena hasta que val los sea minimo (no aumento en 20 epocas)
+    
+#    es = EarlyStopping(monitor = monitor,\
+#                       verbose = 1,\
+#                       patience = patience)    
     
     
     # %% Creacion del modelo nuevo
         
     model = models.Sequential() # Variable en que se almacenara la nueva red
     
+    # Agrega una primer capa convolucional
+    
     model.add(layers.Conv2D(64,\
-                            kernel_size = 3,\
-                            activation = 'relu',\
-                            input_shape = input_shape )) # Agrega una primer capa convolucional
+                            kernel_size = k_size,\
+                            activation = act_fn,\
+                            input_shape = input_shape )) 
 
-    model.add(layers.Dropout(0.25))
+    model.add(layers.Dropout(dropout)) # Capa de dropout
         
-    model.add(layers.MaxPooling2D(pool_size = (2,2))) # Agrega una capa de pooling
+    model.add(layers.MaxPooling2D(pool_size = p_size)) # Capa de pooling
 
+    # Agrega una segunda capa convolucional
+    
     model.add(layers.Conv2D(32,\
-                            kernel_size = 3,\
-                            activation = 'relu')) # Agrega una segunda capa convolucional
+                            kernel_size = k_size,\
+                            activation = act_fn)) 
 
-    model.add(layers.Dropout(0.25))
+    model.add(layers.Dropout(dropout)) #Capa de dropout
 
-    model.add(layers.MaxPooling2D(pool_size = (2,2))) # Agrega una capa de pooling
+    model.add(layers.MaxPooling2D(pool_size = p_size)) # Capa de pooling
         
     model.add(layers.Flatten()) # Agrega una capa de flatten
 
     # Agrega una primer capa densa
+    
     model.add(layers.Dense(128\
-                           ,activation='relu'\
-                           ,kernel_regularizer = regularizers.l2(0)))
+                           ,activation = act_fn\
+                           ,kernel_regularizer = regularizer))
     
-    #Agrega una capa de dropout -> Evitar overfitting
-    
-    model.add(layers.Dropout(0.5))
-        
-    #Agrega una capa densa
-    
-    model.add(layers.Dense(2, activation='softmax'))
-     
-    #Imprime informacion de la nueva red
-    
-    model.summary()
+    model.add(layers.Dropout(dropout)) # Capa de dropout
+            
+    model.add(layers.Dense(n, activation = act_fn_final)) # Capa final
+         
+    model.summary() # Grafica un resumen del modelo
     
     #Compila la red
+    
     model.compile(loss = loss\
                   ,optimizer = optimizer\
                   ,metrics=[metrics])
     
-    # %% Preparacion de los datos
+    # %% Preparacion de los datos (obtiene las imagenes)
     
     #Genera el batch de entrenamiento    
     
@@ -189,7 +218,7 @@ def testbench():
                                       ,classes=labels\
                                       ,batch_size=train_batchsize)
     
-    #Genera el batch de validacion
+    #Genera el batch de validacion    
     
     valid_batches = \
     ImageDataGenerator(rescale=1./255).flow_from_directory(valid_path\
@@ -197,7 +226,7 @@ def testbench():
                                       ,classes=labels,\
                                       batch_size=val_batchsize)
     
-    #Genera el batch de prueba
+    #Genera el batch de prueba    
     
     test_batches = \
     ImageDataGenerator(rescale=1./255).flow_from_directory(test_path\
@@ -205,7 +234,7 @@ def testbench():
                                      ,classes=labels,\
                                      batch_size = test_batchsize)
         
-    # %% Entrenamiento de la red
+    # %% Entrenamiento de la red (TARDA......)
     
     # Entrena la red
     
@@ -220,34 +249,53 @@ def testbench():
         
     model.save(file_model) # Guarda el modelo entrenado
 
-
-    # %% Historia
+    # %% Grafica la evolucion de los parametros durante el entrenamiento
     
     # list all data in history
+    
     print(history.history.keys())
+    
+    plt.figure()
+    
     # summarize history for accuracy
+    
     plt.plot(history.history['acc'])
+    
     plt.plot(history.history['val_acc'])
+    
     plt.title('model accuracy')
+    
     plt.ylabel('accuracy')
+    
     plt.xlabel('epoch')
+    
     plt.legend(['train', 'valid'], loc='upper left')
+    
     plt.show()
     
-    # summarize history for loss
-    plt.plot(history.history['loss'])
-    plt.plot(history.history['val_loss'])
-    plt.title('model loss')
-    plt.ylabel('loss')
-    plt.xlabel('epoch')
-    plt.legend(['train', 'valid'], loc='upper left')
-    plt.show()
-
-    # %% Carga el modelo entrenado
+    plt.savefig('cnn4_acc.png')
         
-    #model = models.load_model(filename)
+    # summarize history for loss
     
-    # %% Testeo de la red
+    plt.figure()
+    
+    plt.plot(history.history['loss'])
+    
+    plt.plot(history.history['val_loss'])
+    
+    plt.title('model loss')
+    
+    plt.ylabel('loss')
+    
+    plt.xlabel('epoch')
+    
+    plt.legend(['train', 'valid'], loc='upper left')
+    
+    plt.show()
+            
+    plt.savefig('cnn4_loss.png')
+            
+    # %% Obtiene los labels reales del set de prueba (TARDA.....)
     
     test_steps = int(np.ceil(test_batches.samples/test_batches.batch_size))
     
@@ -261,34 +309,32 @@ def testbench():
 
         test_labels[int(i*test_batchsize):int((i+1)*test_batchsize)] = l
     
-        print(i)
-
-    i = i +1
-
     test_imgs,l = next(test_batches)
+
+    i = i + 1
 
     l = l[:,1]
 
     test_labels[int(i*test_batchsize):int(len(test_labels))] = l
 
 
-    # %% aaaaa
+    # %% Predice sobre el set de prueba (TARDA......)
 
-    #Utiliza la red entrenada para predecir sobre el conjunto de prueba
-
-    predictions = model.predict_generator(test_batches,steps = test_steps,verbose = 0)
+    # Utiliza la red entrenada para predecir sobre el conjunto de prueba
+    
+    predictions = model.predict_generator(test_batches,\
+                                          steps = test_steps,\
+                                          verbose = 0)
     
     # Como la activacion de la ultima capa es softmax, la salida esta expresada
     #en terminos de probabilidad. En caso que sea mayor a 0.5 se asigna 1 y si
     #es menor se asigna 0
     
-    #Calcular sensibilidad y valor predictivo positivo y f1 (matriz de confusion no)
-    
     predictions = np.where(predictions > 0.5,1,0)
     
     predictions = predictions[:,1]
     
-    # %%
+    # %% Calculo de la matriz de confusion
     
     # Calcula la matriz de confusion usando los labels predichos y los reales
     
@@ -300,7 +346,10 @@ def testbench():
     
     # Imprime la matriz de confusion
     
-    plot_confusion_matrix(cm,cm_plot_labels,title='confusion matrix',normalize = False)
+    plot_confusion_matrix(cm,\
+                          cm_plot_labels,\
+                          title='confusion matrix'\
+                          ,normalize = False)
 
     # %% Calcula los parametros
     
@@ -329,8 +378,6 @@ def testbench():
     Acc = (TP+TN)/(M) # Que tan posible es que mi algoritmo le pegue
 
     # %% Almacena los resultados
-    
-
     
     file = open(file_results,"w") # Abre el archivo para escritura
     

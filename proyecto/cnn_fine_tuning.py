@@ -6,7 +6,15 @@ Created on Sun Feb 17 16:22:47 2019
 @author: lisandro
 
 En este script se prueba fine tuning de un modelo preentrenado de la libreria
-keras.
+keras.Se la entrena especificando los path de entrenamiento, validacion y 
+prueba, el formato de la imagen y los hiperparametros de la red 
+(learning rate, optimizador) y del entrenamiento (batch,epocas).
+Una vez entrenado, se grafica accuracy y loss durante el entrenamiento y la val
+idacion.
+Luego, se realiza la prueba y se genera la matriz de confusion para calcular
+otros valores como la sensibilidad y el valor predictivo positivo. Finalmente,
+se almacena el modelo en un archivo cnnXX.h5 y se guardan los resultados en un
+archivo cnnXX.txt
     
 """
 # %% Inclusion de paquetes
@@ -30,6 +38,8 @@ from keras import regularizers #Regularizacion -> Evitar overfitting
 from keras.preprocessing.image import ImageDataGenerator #Manejar las imagenes
 
 from sklearn.metrics import confusion_matrix #Para calcular la confusion matrix
+
+from contextlib import redirect_stdout # Para guardar model.summary en .txt
 
 # %% Definicion de funciones
 
@@ -86,25 +96,62 @@ def testbench():
     
     test_path = '/home/lisandro/dsp/tps_dsp/proyecto/escalogramas/test/'
     
-    # Formato de las imagenes
+    # %% Parametros de las imagenes
     
-    image_size = 50 #Pixels de la imagen NxN
+    image_height = 32 # Alto de la imagen (cantidad de escalas)
     
-    channels = 3 #Cantidad de canales (color o escala de grises)
+    image_width = 32  # Ancho de la imagen (muestras en segmento: T*fs)
     
-    # Categorias en las que se encuentran clasificadas las imagenes 
+    channels = 3 # Cantidad de canales (color = 3 o escala de grises = 1)
     
-    labels = ['NO','SI']
+    input_shape = (image_height,image_width,channels) # Formato de las imagenes
+        
+    labels = ['NO','SI'] # Categorias en las que estan clasificadas 
+
+    n = int(len(labels)) # Cantidad de categorias
     
-    # %% Parametros del entrenamiento
+    # %% Hyperparametros
     
-    # Change the batchsize according to your system RAM
+    #(Change the batchsize according to your system RAM)
     
-    train_batchsize = 100 #Tamaño del batch de entrenamiento
+    train_batchsize = 128 # Tamaño del batch de entrenamiento
     
-    val_batchsize = 10 #Tamaño del batch de validación
+    val_batchsize = 128 # Tamaño del batch de validación
     
-    epochs = 4 #Epocas (cantidad de veces que se itera)    
+    test_batchsize = 128 # Tamaño del batch de prueba
+    
+    epochs = 1 # Cantidad de veces que se itera sobre el dataset    
+
+    lr = 1e-4 # Learning Rate
+
+    optimizer = optimizers.Adam(lr = lr) # Optimizador
+    #optimizer=optimizers.RMSprop(lr = lr)
+    #optimizer = optimizers.SGD(lr = lr)
+
+    opt = 'Adam' # Variable a los efectos de documentar el optimizador usado
+    
+    loss = 'binary_crossentropy' # Func. utilizada para optimizar el algoritmo
+    
+    metrics = 'acc' # Metrica utilizada para medir la performance
+
+    dropout = 0.25
+
+    regularizer = regularizers.l2(0)
+
+    act_fn = 'relu' # Funcion de activacion de todas las capas menos la ultima
+    
+    act_fn_final = 'softmax' # Funcion de activacion de la ultima capa
+
+    trainable = 4 # Se entrenan las ultimas n capas convolucionales de vgg16
+
+#    monitor = 'val_loss'
+#    
+#    patience = 20
+
+    file_model = 'vgg16_v1.h5'
+            
+    file_results = 'vgg16_v1.txt'  
+
     
     # %% Carga la red preentrenada
     
@@ -117,7 +164,7 @@ def testbench():
     
     base_model = vgg16.VGG16(include_top=False\
                              , weights='imagenet'\
-                             ,input_shape = (image_size,image_size,channels))
+                             ,input_shape = input_shape)
     
     #Imprime informacion de la red preentrenada
     
@@ -127,7 +174,7 @@ def testbench():
     
     # Se entrenaran solo las ultimas 4 capas de la red preentrenada
     
-    for layer in base_model.layers[:-4]:
+    for layer in base_model.layers[:-int(trainable)]:
         
         layer.trainable = False
  
@@ -152,28 +199,23 @@ def testbench():
     # Agrega una capa densa
     
     model.add(layers.Dense(1024\
-                           ,activation='relu'\
-                           ,kernel_regularizer = regularizers.l2(0)))
+                           ,activation=act_fn\
+                           ,kernel_regularizer = regularizer))
     
     #Agrega una capa de dropout -> Evitar overfitting
     
-    model.add(layers.Dropout(0.5))
+    model.add(layers.Dropout(dropout))
     
     #Agrega una capa densa
     
-    model.add(layers.Dense(2, activation='softmax'))
+    model.add(layers.Dense(n, activation=act_fn_final))
      
     #Imprime informacion de la nueva red
     
     model.summary()
-
-    # Optimizador de la red
-    
-    optimizer=optimizers.RMSprop(lr=1e-4)
-    #sgd = optimizers.SGD(lr=1e-4)
     
     #Compila la red
-    
+    #Binary_crossentropy
     model.compile(loss='categorical_crossentropy'\
                   ,optimizer=optimizer\
                   ,metrics=['acc'])
@@ -182,29 +224,32 @@ def testbench():
     
     #Genera el batch de entrenamiento    
     
-    train_batches = ImageDataGenerator(rescale=1./255).flow_from_directory(train_path\
-                                      ,target_size=(image_size,image_size)\
+    train_batches = \
+    ImageDataGenerator(rescale=1./255).flow_from_directory(train_path\
+                                      ,target_size=(image_height,image_width)\
                                       ,classes=labels\
                                       ,batch_size=train_batchsize)
     
     #Genera el batch de validacion
     
-    valid_batches = ImageDataGenerator(rescale=1./255).flow_from_directory(valid_path\
-                                      ,target_size=(image_size,image_size)\
+    valid_batches = \
+    ImageDataGenerator(rescale=1./255).flow_from_directory(valid_path\
+                                      ,target_size=(image_height,image_width)\
                                       ,classes=labels,\
                                       batch_size=val_batchsize)
     
     #Genera el batch de prueba
     
-    test_batches = ImageDataGenerator(rescale=1./255).flow_from_directory(test_path\
-                                     ,target_size=(image_size,image_size)\
+    test_batches = \
+    ImageDataGenerator(rescale=1./255).flow_from_directory(test_path\
+                                     ,target_size=(image_height,image_width)\
                                      ,classes=labels)
         
     # %% Entrenamiento de la red
     
     # Entrena la red
     
-    model.fit_generator(train_batches\
+    history = model.fit_generator(train_batches\
                         ,steps_per_epoch=\
                             train_batches.samples/train_batches.batch_size\
                         ,validation_data = valid_batches\
@@ -215,21 +260,84 @@ def testbench():
     
     # Guarda el modelo entrenado
     
-    model.save('detector.h5')
+    model.save(file_model)
     
-    # %% Testeo de la red
+    # %% Grafica la evolucion de los parametros durante el entrenamiento
     
-    #Obtiene las imagenes de prueba y los labels correspondientes
+    # list all data in history
     
-    test_imgs,test_labels = next(test_batches)
+    print(history.history.keys())
+    
+    plt.figure()
+    
+    # summarize history for accuracy
+    
+    plt.plot(history.history['acc'])
+    
+    plt.plot(history.history['val_acc'])
+    
+    plt.title('model accuracy')
+    
+    plt.ylabel('accuracy')
+    
+    plt.xlabel('epoch')
+    
+    plt.legend(['train', 'valid'], loc='upper left')
+    
+    plt.show()
+    
+    plt.savefig('vgg16_v1_acc.png')
+        
+    # summarize history for loss
+    
+    plt.figure()
+    
+    plt.plot(history.history['loss'])
+    
+    plt.plot(history.history['val_loss'])
+    
+    plt.title('model loss')
+    
+    plt.ylabel('loss')
+    
+    plt.xlabel('epoch')
+    
+    plt.legend(['train', 'valid'], loc='upper left')
+    
+    plt.show()
+            
+    plt.savefig('vgg16_v1_loss.png')
+    
+    # %% Obtiene los labels reales del set de prueba (TARDA.....)
+    
+    test_steps = int(np.ceil(test_batches.samples/test_batches.batch_size))
+    
+    test_labels = np.zeros((test_batches.samples,),dtype = int)
+    
+    for i in range(test_steps-1):
+    
+        test_imgs,l = next(test_batches)
+    
+        l = l[:,1]
 
-    #Obtiene los labels del conjunto de prueba
+        test_labels[int(i*test_batchsize):int((i+1)*test_batchsize)] = l
+    
+    test_imgs,l = next(test_batches)
 
-    test_labels = test_labels[:,0]
+    i = i + 1
 
-    #Utiliza la red entrenada para predecir sobre el conjunto de prueba
+    l = l[:,1]
 
-    predictions = model.predict_generator(test_batches,steps = 1,verbose = 0)
+    test_labels[int(i*test_batchsize):int(len(test_labels))] = l
+
+
+    # %% Predice sobre el set de prueba (TARDA......)
+
+    # Utiliza la red entrenada para predecir sobre el conjunto de prueba
+    
+    predictions = model.predict_generator(test_batches,\
+                                          steps = test_steps,\
+                                          verbose = 1)
     
     # Como la activacion de la ultima capa es softmax, la salida esta expresada
     #en terminos de probabilidad. En caso que sea mayor a 0.5 se asigna 1 y si
@@ -237,9 +345,13 @@ def testbench():
     
     predictions = np.where(predictions > 0.5,1,0)
     
+    predictions = predictions[:,1]
+    
+    # %% Calculo de la matriz de confusion
+    
     # Calcula la matriz de confusion usando los labels predichos y los reales
     
-    cm = confusion_matrix(test_labels,predictions[:,0])
+    cm = confusion_matrix(test_labels,predictions)
     
     # Categorias que se imprimen en la matriz de confusion
     
@@ -247,10 +359,116 @@ def testbench():
     
     # Imprime la matriz de confusion
     
-    plot_confusion_matrix(cm\
-                          ,cm_plot_labels\
-                          ,title='confusion matrix'\
-                          ,normalize = True)
+    plot_confusion_matrix(cm,\
+                          cm_plot_labels,\
+                          title='confusion matrix'\
+                          ,normalize = False)
+
+    # %% Calcula los parametros
+    
+    TP = cm[1][1] # Verdadero positivo (Predije SI y era SI)
+    
+    FP = cm[0][1] # Falso positivo (Predije SI y era NO)
+    
+    TN = cm[0][0] # Verdadero negativo (Predije NO y era NO)
+    
+    FN = cm[1][0] # Falso negativo (Predije NO y era NO)
+
+    PCP = TP + FP # Cantidad de veces que el algoritmo predijo SI
+
+    PCN = TN + FN # Cantidad de veces que el algoritmo predijo NO
+
+    CP = TP + FN # Cantidad de veces que ha ocurrido SI
+    
+    CN = FP + TN # Cantidad de veces que ha ocurrido NO
+
+    M = PCP + PCN # Cantidad de ocurrencias
+
+    S = (TP)/(CP) # Que tan posible es que mi algoritmo detecte SI si ocurrio SI
+    
+    PPV = TP/PCP # Que tan posible es que haya ocurrido SI si predije SI
+    
+    Acc = (TP+TN)/(M) # Que tan posible es que mi algoritmo le pegue
+
+
+    # %% Almacena los resultados
+    
+    file = open(file_results,"w") # Abre el archivo para escritura
+    
+    file.write('MODELO.\n')
+    
+    with(redirect_stdout(file)):
+        model.summary()
+        
+    file.write('\n')
+               
+    file.write('HIPERPARAMETROS.\n\n')
+    
+    file.write('Learning rate: {:.6f}\n'.format(lr))
+    
+    file.write('Loss function: {:s}\n'.format(loss))
+    
+    file.write('Metrics: {:s}\n'.format(metrics))
+    
+    file.write('Optimizer: {:s}\n'.format(opt))
+    
+    file.write('Train batch size: {:d}\n'.format(train_batchsize))
+
+    file.write('Valid batch size: {:d}\n'.format(val_batchsize))
+
+    file.write('Test batch size: {:d}\n'.format(test_batchsize))
+    
+    file.write('Epochs: {:d}\n'.format(epochs))
+    
+    file.write('Modelo preentrenado: {:s}\n'.format('VGG16'))
+    
+    file.write('Weights: {:s}\n'.format('ImageNet'))
+    
+    file.write('Trainable: {}')
+    
+    file.write('\nENTRENAMIENTO.\n\n')
+    
+    file.write('Cantidad total: {:d}\n'.format(train_batches.samples))
+    
+    file.write('Accuracy:\n')
+    
+    file.write('Loss:\n')
+    
+    file.write('\nVALIDACION.\n\n')
+
+    file.write('Cantidad total: {:d}\n'.format(train_batches.samples))
+    
+    file.write('Validation Accuracy:\n')
+    
+    file.write('Validation Loss:\n')
+    
+    file.write('\nPRUEBA.\n\n')
+
+    file.write('Cantidad total: {:d}\n'.format(M))
+
+    file.write('Verdadero positivo: {:d}\n'.format(TP))
+
+    file.write('Falso negativo: {:d}\n'.format(FN))
+    
+    file.write('Verdadero negativo: {:d}\n'.format(TN))
+
+    file.write('Falso positivo: {:d}\n'.format(FP))
+                
+    file.write('Condición positiva: {:d}\n'.format(CP))
+    
+    file.write('Condición negativa: {:d}\n'.format(CN))
+    
+    file.write('Predijo condicion positiva: {:d}\n'.format(PCP))
+
+    file.write('Predijo condicion positiva: {:d}\n'.format(PCN))
+
+    file.write('Sensibilidad: {:.6f}\n'.format(S))
+
+    file.write('Valor predictivo positivo: {:.6f}\n'.format(PPV))
+
+    file.write('Exactitud: {:.6f}\n'.format(Acc))
+    
+    file.close()
     
 # %% Ejecuta el testbench
 
